@@ -25,73 +25,97 @@ from zope.app.component.hooks import setHooks, setSite
 from AccessControl.SecurityManagement import noSecurityManager
 from mimetypes import guess_type
 
+import pdb
+import os
+import sys
 
-attr_storage = AttributeStorage()
-fss_storage = FileSystemStorage()
-
-# Usado no Plone Site do Ciência Hoje
+log_file = os.path.join('.', 'log_%s%s' % (datetime.now().strftime('%Y%m%d%H%M%S') ,'.log'))
 ploneid = 'PLONESITE ID HERE'
 pt = ('News Item','Image','File')
 
-app = makerequest(app)
+def log2file(row):
+    global log_file
+    arq = open(log_file, 'a+')
+    arq.write(row)
+    arq.write('\n')
+    arq.close()
 
-_policy = PermissiveSecurityPolicy()
-_oldpolicy = setSecurityPolicy(_policy)
-newSecurityManager(None, OmnipotentUser().__of__(app.acl_users))
+def log(*args):
+    aa = []
+    for arg in args:
+        print arg,
+        aa.append(str(arg))
+    print
+    aa = ' '.join(aa)
+    log2file(aa)
 
-portal = app[ploneid]
-setSite(portal)
+def main():
+    global app
 
+    attr_storage = AttributeStorage()
+    fss_storage = FileSystemStorage()
+    
+    app = makerequest(app)
+    
+    _policy = PermissiveSecurityPolicy()
+    _oldpolicy = setSecurityPolicy(_policy)
+    newSecurityManager(None, OmnipotentUser().__of__(app.acl_users))
 
-print 'Iniciado as ',
-print datetime.now().isoformat()
-
-ct = getToolByName(portal, 'portal_catalog')
-fssfiles = ct.searchResults({'portal_type':pt})
-
-for fssfile in fssfiles:
-    print 'Migrando: %s em %s ... ' %(fssfile.id, fssfile.getPath()),
-
-    obj = portal.restrictedTraverse(fssfile.getPath())
-
-    try:
-        f_tp = 'image'
-        field = obj.Schema()[f_tp]
-    except KeyError, e:
-        f_tp = 'file'
-        field = obj.Schema()[f_tp]
-
-
-    fieldstorage = field.storage
-
-    try:
-        mimetype = field.getContentType(obj)
-    except:
-        mimetype = obj.getContentType()
-
-    content = StringIO(str(fss_storage.get(f_tp, obj)))
-
-    # Limpando o storage
-    fss_storage.unset(f_tp, obj)
-
-    field.set(obj, content)
-    field.setContentType(obj, mimetype)
-    field.setFilename(obj,obj.id)
-
-    print 'OK'
-
-    print ''
-    print 'Commit da transacao e sinconismo do Data.fs'
+    global portal, ct
+    
+    portal = app[ploneid]
+    setSite(portal)
+    
+    # Initialization
+    log('Initialized at', datetime.now().isoformat())
+    
+    ct = getToolByName(portal, 'portal_catalog')
+    fssfiles = ct.searchResults({'portal_type':pt})
+    
+    for fssfile in fssfiles:
+        log('Migrating: %s in %s ... ' %(fssfile.id, fssfile.getPath()))
+    
+        obj = portal.restrictedTraverse(fssfile.getPath())
+    
+        try:
+            f_tp = 'image'
+            field = obj.Schema()[f_tp]
+        except KeyError, e:
+            f_tp = 'file'
+            field = obj.Schema()[f_tp]
+    
+    
+        fieldstorage = field.storage
+    
+        try:
+            mimetype = field.getContentType(obj)
+        except:
+            mimetype = obj.getContentType()
+    
+        content = StringIO(str(fss_storage.get(f_tp, obj)))
+    
+        # Cleaning the storage 
+        fss_storage.unset(f_tp, obj)
+    
+        field.set(obj, content)
+        field.setContentType(obj, mimetype)
+        field.setFilename(obj,obj.id)
+    
+        log('Transaction commit and Data.fs synchronism.')
+        transaction.commit()
+        app._p_jar.sync()
+    
+    noSecurityManager()
+    
+    transaction.savepoint(1)
+    log('Transaction commit and Data.fs synchronism.')
     transaction.commit()
     app._p_jar.sync()
-    print ''
 
-noSecurityManager()
+    log('Completed at', datetime.now().isoformat())
 
-transaction.savepoint(1)
-print 'Commit da transacao e sinconismo do Data.fs'
-transaction.commit()
-app._p_jar.sync()
-
-print 'Finalizado as ',
-print datetime.now().isoformat()
+if __name__ == '__main__':
+    sys.excepthook = do_debugger
+    main()
+else:
+    pdb.set_trace()
