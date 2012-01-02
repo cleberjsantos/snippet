@@ -49,6 +49,13 @@ def log(*args):
     aa = ' '.join(aa)
     log2file(aa)
 
+def do_debugger(type, value, tb):
+    log(value.args)
+    log('tb value:', value)
+    log('TB:\n', tb)
+
+    pdb.pm()
+
 def main():
     global app
 
