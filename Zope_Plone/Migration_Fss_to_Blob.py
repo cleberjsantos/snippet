@@ -80,7 +80,7 @@ def main():
     fssfiles = ct.searchResults({'portal_type':pt})
     
     for fssfile in fssfiles:
-        log('Migrating: %s in %s ... ' %(fssfile.id, fssfile.getPath()))
+        log('Migrating: [%s] %s in %s ... ' %(fssfile.Type,fssfile.id, fssfile.getPath()))
     
         obj = portal.restrictedTraverse(fssfile.getPath())
     
